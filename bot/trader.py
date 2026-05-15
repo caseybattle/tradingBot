@@ -35,6 +35,16 @@ class Trader:
             ticker = self.exchange.get_ticker(SYMBOL)
             price = ticker["last"]
 
+            # Store market data in state for dashboard
+            self.state.last_price = price
+            self.state.funding_rate = funding
+            try:
+                rsi, st_dir = self.strategy.get_indicators(df)
+                self.state.rsi = rsi
+                self.state.supertrend_dir = st_dir
+            except Exception:
+                pass
+
             # check stop/target on open position
             pos = self.state.position
             if pos:

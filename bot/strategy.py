@@ -38,6 +38,16 @@ class Strategy:
         self.rsi_lower = rsi_lower
         self.funding_threshold = funding_rate_threshold
 
+    def get_indicators(self, df: pd.DataFrame) -> tuple[float, int]:
+        """Returns (rsi, supertrend_direction) for latest candle."""
+        st = ta.supertrend(df["high"], df["low"], df["close"],
+                           length=self.st_period, multiplier=self.st_mult)
+        dir_cols = [c for c in st.columns if "SUPERTd" in c]
+        st_dir = int(st[dir_cols[0]].iloc[-1]) if dir_cols else 0
+        rsi_series = ta.rsi(df["close"], length=self.rsi_period)
+        rsi = float(rsi_series.iloc[-1]) if not np.isnan(rsi_series.iloc[-1]) else 50.0
+        return rsi, st_dir
+
     def compute(self, df: pd.DataFrame, funding_rate: float) -> Signal:
         if len(df) < self.MIN_CANDLES:
             raise ValueError(f"Not enough candles: need {self.MIN_CANDLES}, got {len(df)}")
