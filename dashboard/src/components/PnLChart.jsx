@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { createChart, ColorType } from "lightweight-charts";
+import { createChart, ColorType, AreaSeries } from "lightweight-charts";
 
 export function PnLChart({ equityHistory = [] }) {
   const containerRef = useRef(null);
@@ -23,7 +23,7 @@ export function PnLChart({ equityHistory = [] }) {
       height: 180,
     });
 
-    const series = chart.addAreaSeries({
+    const series = chart.addSeries(AreaSeries, {
       lineColor: "#00ff88",
       topColor: "rgba(0,255,136,0.25)",
       bottomColor: "rgba(0,255,136,0)",
