@@ -3,20 +3,27 @@ import hmac
 import base64
 import time
 import urllib.parse
+import urllib3
 import requests
 import pandas as pd
 from dotenv import load_dotenv
 import os
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv()
 
 LIVE_BASE = "https://futures.kraken.com/derivatives/api/v3"
 DEMO_BASE = "https://demo-futures.kraken.com/derivatives/api/v3"
+LIVE_CHARTS = "https://futures.kraken.com/api/charts/v1"
+DEMO_CHARTS = "https://demo-futures.kraken.com/api/charts/v1"
+_SESSION = requests.Session()
+_SESSION.verify = False  # Windows SSL cert store workaround
 
 
 class KrakenFutures:
     def __init__(self, demo: bool = True):
         self.base = DEMO_BASE if demo else LIVE_BASE
+        self.charts_base = DEMO_CHARTS if demo else LIVE_CHARTS
         self.api_key = os.getenv("KRAKEN_API_KEY", "")
         self.api_secret = os.getenv("KRAKEN_API_SECRET", "")
 
@@ -38,7 +45,7 @@ class KrakenFutures:
         nonce = str(int(time.time() * 1000))
         query = urllib.parse.urlencode(params or {})
         url = f"{self.base}{endpoint}"
-        resp = requests.get(
+        resp = _SESSION.get(
             url, params=params,
             headers=self._headers(endpoint, nonce, query),
             timeout=10
@@ -50,7 +57,7 @@ class KrakenFutures:
         nonce = str(int(time.time() * 1000))
         post_data = urllib.parse.urlencode(data or {})
         url = f"{self.base}{endpoint}"
-        resp = requests.post(
+        resp = _SESSION.post(
             url, data=data,
             headers={
                 **self._headers(endpoint, nonce, post_data),
@@ -74,21 +81,14 @@ class KrakenFutures:
 
     def get_candles(self, symbol: str, resolution: int = 15, count: int = 200) -> pd.DataFrame:
         """Fetch OHLCV candles. Resolution in minutes."""
-        # Kraken Futures charts API
-        # resolution maps to: 1, 5, 15, 30, 60, 240, 1440 (minutes)
-        data = self._get(f"/api/charts/v1/trade/{symbol}/{resolution}m", {
+        url = f"{self.charts_base}/trade/{symbol}/{resolution}m"
+        resp = _SESSION.get(url, params={
             "from": int(time.time()) - count * resolution * 60,
             "to": int(time.time()),
-        })
+        }, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
         candles_raw = data.get("candles", [])
-        if not candles_raw:
-            # Fallback: try alternative endpoint format
-            data = self._get("/history/candles", {
-                "symbol": symbol,
-                "resolution": resolution,
-                "count": count,
-            })
-            candles_raw = data.get("candles", [])
 
         df = pd.DataFrame(candles_raw)
         if df.empty:
