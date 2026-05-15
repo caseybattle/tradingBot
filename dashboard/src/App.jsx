@@ -3,6 +3,7 @@ import { PnLCounter } from "./components/PnLCounter";
 import { ParticleCanvas } from "./components/ParticleCanvas";
 import { TradeLog } from "./components/TradeLog";
 import { PnLChart } from "./components/PnLChart";
+import { CandleChart } from "./components/CandleChart";
 
 const CARD = {
   background: "rgba(255,255,255,0.03)",
@@ -245,12 +246,19 @@ export default function App() {
           </div>
         )}
 
-        {/* ROW 4: Equity curve */}
+        {/* ROW 4: Live candle chart */}
         <div style={{ ...CARD, marginBottom: 12, padding: "16px 20px 8px" }}>
-          <PnLChart equityHistory={equity} />
+          <CandleChart position={position} />
         </div>
 
-        {/* ROW 5: Trade log */}
+        {/* ROW 5: Equity curve (shows once trades close) */}
+        {equity.length > 0 && (
+          <div style={{ ...CARD, marginBottom: 12, padding: "16px 20px 8px" }}>
+            <PnLChart equityHistory={equity} />
+          </div>
+        )}
+
+        {/* ROW 6: Trade log */}
         <TradeLog trades={trades} />
       </div>
     </div>

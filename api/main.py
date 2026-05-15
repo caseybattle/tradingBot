@@ -64,6 +64,29 @@ def snapshot():
     return state.snapshot()
 
 
+@app.get("/candles")
+def candles_endpoint(count: int = 100):
+    import os
+    from bot.exchange import KrakenFutures
+    demo = os.getenv("KRAKEN_DEMO", "true").lower() == "true"
+    symbol = os.getenv("SYMBOL", "PI_XBTUSD")
+    interval = int(os.getenv("CANDLE_INTERVAL", "15"))
+    ex = KrakenFutures(demo=demo)
+    df = ex.get_candles(symbol, resolution=interval, count=count)
+    df = df.reset_index()
+    result = []
+    for _, row in df.iterrows():
+        t = row["time"]
+        result.append({
+            "time": int(t.timestamp()),
+            "open": float(row["open"]),
+            "high": float(row["high"]),
+            "low": float(row["low"]),
+            "close": float(row["close"]),
+        })
+    return result
+
+
 @app.get("/trades")
 def trades(limit: int = 100):
     return load_trades(limit)
