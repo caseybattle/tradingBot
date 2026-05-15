@@ -34,24 +34,19 @@ export function BacktestPanel() {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen]       = useState(false);
+  const [years, setYears]     = useState(1);
 
-  const run = async () => {
+  const run = async (y = years) => {
     setLoading(true);
     setOpen(true);
     try {
-      const res = await fetch(`${REST_BASE}/backtest`);
+      await fetch(`${REST_BASE}/backtest/reset`, { method: "POST" });
+      const res = await fetch(`${REST_BASE}/backtest?years=${y}`);
       setData(await res.json());
     } catch (e) {
       setData({ status: "error", detail: String(e) });
     }
     setLoading(false);
-  };
-
-  const reset = async () => {
-    await fetch(`${REST_BASE}/backtest/reset`, { method: "POST" });
-    setData(null);
-    setLoading(false);
-    run();
   };
 
   return (
@@ -61,23 +56,23 @@ export function BacktestPanel() {
           <div style={{ fontSize: 11, color: "#555", letterSpacing: 2 }}>BACKTEST RESULTS</div>
           {data?.note && <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>{data.note}</div>}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {data && (
-            <button onClick={reset} style={{
-              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
-              color: "#666", fontSize: 11, padding: "4px 12px", borderRadius: 6, cursor: "pointer",
-            }}>
-              RE-RUN
-            </button>
-          )}
-          <button onClick={data ? () => setOpen(!open) : run} style={{
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {[1, 2, 3].map(y => (
+            <button key={y} onClick={() => { setYears(y); if (data) run(y); }} style={{
+              background: years === y ? "rgba(0,255,136,0.12)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${years === y ? "rgba(0,255,136,0.3)" : "rgba(255,255,255,0.08)"}`,
+              color: years === y ? "#00ff88" : "#555",
+              fontSize: 11, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+            }}>{y}Y</button>
+          ))}
+          <button onClick={() => run(years)} style={{
             background: data?.gate === "PASS" ? "rgba(0,255,136,0.1)" : data?.gate === "FAIL" ? "rgba(255,68,85,0.1)" : "rgba(0,255,136,0.08)",
             border: `1px solid ${data?.gate === "PASS" ? "rgba(0,255,136,0.3)" : data?.gate === "FAIL" ? "rgba(255,68,85,0.3)" : "rgba(0,255,136,0.2)"}`,
             color: data?.gate === "PASS" ? "#00ff88" : data?.gate === "FAIL" ? "#ff4455" : "#00ff88",
             fontSize: 11, fontWeight: 700, letterSpacing: 1,
             padding: "4px 16px", borderRadius: 6, cursor: "pointer",
           }}>
-            {loading ? "RUNNING..." : data ? (open ? "HIDE" : data.gate) : "RUN BACKTEST"}
+            {loading ? `FETCHING ${years}Y...` : data && !loading ? (open ? "HIDE" : data.gate ?? "RUN") : "RUN BACKTEST"}
           </button>
         </div>
       </div>
@@ -128,7 +123,7 @@ export function BacktestPanel() {
               higherBetter={true} fmt={(v) => v === Infinity ? "∞" : v.toFixed(2)} />
           </div>
           <div style={{ fontSize: 10, color: "#2a2a2a", marginTop: 12, textAlign: "center" }}>
-            Note: Kraken public API ~8 days of 15m data. Limited sample — paper trading is primary validation.
+            Source: Binance.us BTCUSD 15m · Paper trading is primary live validation.
           </div>
         </>
       )}

@@ -6,9 +6,53 @@ import pandas as pd
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-KRAKEN_SPOT_BASE = "https://api.kraken.com/0/public"
+KRAKEN_SPOT_BASE  = "https://api.kraken.com/0/public"
+BINANCE_BASE      = "https://api.binance.us/api/v3/klines"  # US-compliant, no geo-block
 _SESSION = requests.Session()
 _SESSION.verify = False  # Windows SSL cert store workaround
+
+BINANCE_INTERVAL_MAP = {1: "1m", 3: "3m", 5: "5m", 15: "15m", 30: "30m",
+                        60: "1h", 120: "2h", 240: "4h", 1440: "1d"}
+
+
+def fetch_binance(symbol: str = "BTCUSDT", interval: int = 15, days: int = 365) -> pd.DataFrame:
+    """
+    Fetch OHLCV from Binance public API. No API key needed.
+    Goes back to 2017 for BTCUSDT. Paginates automatically.
+    interval: minutes (1, 5, 15, 30, 60, 240, 1440)
+    """
+    iv = BINANCE_INTERVAL_MAP.get(interval, "15m")
+    start_ms = int((time.time() - days * 86400) * 1000)
+    end_ms   = int(time.time() * 1000)
+    frames   = []
+
+    while start_ms < end_ms:
+        resp = _SESSION.get(BINANCE_BASE, params={
+            "symbol": symbol, "interval": iv,
+            "startTime": start_ms, "endTime": end_ms, "limit": 1000,
+        }, timeout=15)
+        resp.raise_for_status()
+        raw = resp.json()
+        if not raw:
+            break
+        df = pd.DataFrame(raw, columns=[
+            "time", "open", "high", "low", "close", "volume",
+            "close_time", "quote_vol", "trades", "taker_base", "taker_quote", "ignore"
+        ])
+        df["time"] = pd.to_datetime(df["time"], unit="ms")
+        df = df.set_index("time")[["open", "high", "low", "close", "volume"]].astype(float)
+        frames.append(df)
+        start_ms = int(raw[-1][0]) + 1  # next candle
+        if len(raw) < 1000:
+            break
+        time.sleep(0.2)
+
+    if not frames:
+        raise RuntimeError(f"No Binance data returned for {symbol}")
+
+    combined = pd.concat(frames)
+    combined = combined[~combined.index.duplicated(keep="last")].sort_index()
+    return combined
 
 
 def fetch_ohlcv(symbol: str = "XBTUSD", interval: int = 15, since: int = None) -> pd.DataFrame:

@@ -68,18 +68,16 @@ _backtest_cache: dict | None = None
 
 
 @app.get("/backtest")
-def backtest_endpoint():
+def backtest_endpoint(years: int = 1):
     global _backtest_cache
-    if _backtest_cache:
+    cache_key = f"y{years}"
+    if _backtest_cache and _backtest_cache.get("_key") == cache_key:
         return _backtest_cache
     try:
-        import os
-        from backtest.data import fetch_history
+        from backtest.data import fetch_binance
         from backtest.engine import BacktestEngine
 
-        symbol = os.getenv("SYMBOL", "PI_XBTUSD")
-        kraken_sym = symbol.replace("PI_", "").replace("USD", "USD")  # XBTUSD
-        df = fetch_history(symbol=kraken_sym, interval=15, days=8)
+        df = fetch_binance(symbol="BTCUSD", interval=15, days=years * 365)
 
         engine = BacktestEngine(
             initial_capital=10_000.0,
@@ -89,6 +87,7 @@ def backtest_endpoint():
         )
         result = engine.run(df)
         _backtest_cache = {
+            "_key": cache_key,
             "status": "ok",
             "gate": "PASS" if result.passes_gate() else "FAIL",
             "total_return_pct": result.total_return_pct,
@@ -97,10 +96,11 @@ def backtest_endpoint():
             "win_rate": result.win_rate,
             "total_trades": result.total_trades,
             "profit_factor": result.profit_factor,
-            "note": f"{len(df)} candles · {df.index[0].date()} to {df.index[-1].date()}",
+            "years": years,
+            "note": f"{len(df):,} candles · {df.index[0].date()} → {df.index[-1].date()} · Binance BTCUSDT 15m",
         }
     except Exception as e:
-        _backtest_cache = {"status": "error", "detail": str(e)}
+        _backtest_cache = {"_key": cache_key, "status": "error", "detail": str(e)}
     return _backtest_cache
 
 
