@@ -64,6 +64,53 @@ def snapshot():
     return state.snapshot()
 
 
+_backtest_cache: dict | None = None
+
+
+@app.get("/backtest")
+def backtest_endpoint():
+    global _backtest_cache
+    if _backtest_cache:
+        return _backtest_cache
+    try:
+        import os
+        from backtest.data import fetch_history
+        from backtest.engine import BacktestEngine
+
+        symbol = os.getenv("SYMBOL", "PI_XBTUSD")
+        kraken_sym = symbol.replace("PI_", "").replace("USD", "USD")  # XBTUSD
+        df = fetch_history(symbol=kraken_sym, interval=15, days=8)
+
+        engine = BacktestEngine(
+            initial_capital=10_000.0,
+            risk_pct=0.02, stop_pct=0.015,
+            target_mult=2.0, max_position_usd=5_000.0,
+            commission_pct=0.0005,
+        )
+        result = engine.run(df)
+        _backtest_cache = {
+            "status": "ok",
+            "gate": "PASS" if result.passes_gate() else "FAIL",
+            "total_return_pct": result.total_return_pct,
+            "sharpe_ratio": result.sharpe_ratio,
+            "max_drawdown_pct": result.max_drawdown_pct,
+            "win_rate": result.win_rate,
+            "total_trades": result.total_trades,
+            "profit_factor": result.profit_factor,
+            "note": f"{len(df)} candles · {df.index[0].date()} to {df.index[-1].date()}",
+        }
+    except Exception as e:
+        _backtest_cache = {"status": "error", "detail": str(e)}
+    return _backtest_cache
+
+
+@app.post("/backtest/reset")
+def backtest_reset():
+    global _backtest_cache
+    _backtest_cache = None
+    return {"status": "cache cleared"}
+
+
 @app.get("/candles")
 def candles_endpoint(count: int = 100):
     import os

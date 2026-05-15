@@ -4,6 +4,7 @@ import { ParticleCanvas } from "./components/ParticleCanvas";
 import { TradeLog } from "./components/TradeLog";
 import { PnLChart } from "./components/PnLChart";
 import { CandleChart } from "./components/CandleChart";
+import { BacktestPanel } from "./components/BacktestPanel";
 
 const CARD = {
   background: "rgba(255,255,255,0.03)",
@@ -258,7 +259,10 @@ export default function App() {
           </div>
         )}
 
-        {/* ROW 6: Trade log */}
+        {/* ROW 6: Backtest panel */}
+        <BacktestPanel />
+
+        {/* ROW 7: Trade log */}
         <TradeLog trades={trades} />
       </div>
     </div>
