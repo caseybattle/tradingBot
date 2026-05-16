@@ -1,6 +1,7 @@
 const isBrowser = typeof window !== "undefined";
 const isLocalHost = isBrowser && ["localhost", "127.0.0.1"].includes(window.location.hostname);
-const defaultBase = isBrowser && !isLocalHost ? "/api" : "http://localhost:8000";
+const localApiHost = isBrowser ? window.location.hostname : "localhost";
+const defaultBase = isBrowser && !isLocalHost ? "/api" : `http://${localApiHost}:8000`;
 
 const rawBase =
   import.meta.env.VITE_API_BASE ||
@@ -12,7 +13,7 @@ export const SNAPSHOT_URL = import.meta.env.VITE_REST_URL || `${REST_BASE}/snaps
 export const WS_URL = import.meta.env.VITE_WS_URL || (
   isBrowser && !isLocalHost
     ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`
-    : "ws://localhost:8000/ws"
+    : `ws://${localApiHost}:8000/ws`
 );
 
 export async function getJson(path) {
