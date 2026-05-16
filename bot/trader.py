@@ -8,7 +8,6 @@ from bot.exchange import KrakenFutures
 from bot.strategy import Strategy, Signal
 from bot.risk import RiskManager
 from bot.state import BotState
-from api.db import save_position, clear_position
 
 load_dotenv()
 
@@ -20,6 +19,7 @@ INTERVAL = int(os.getenv("CANDLE_INTERVAL", "15"))
 LOOP_SECONDS = INTERVAL * 60
 DEMO = os.getenv("KRAKEN_DEMO", "true").lower() == "true"
 ALLOW_LIVE_TRADING = os.getenv("ALLOW_LIVE_TRADING", "false").lower() == "true"
+ADVISOR_MODE = os.getenv("ADVISOR_MODE", "true").lower() == "true"
 
 
 class Trader:
@@ -32,9 +32,10 @@ class Trader:
 
     async def _tick(self):
         try:
-            df = self.exchange.get_candles(SYMBOL, resolution=INTERVAL, count=200)
-            funding = self.exchange.get_funding_rate(SYMBOL)
-            ticker = self.exchange.get_ticker(SYMBOL)
+            symbol = self.state.active_symbol or SYMBOL
+            df = self.exchange.get_candles(symbol, resolution=INTERVAL, count=200)
+            funding = self.exchange.get_funding_rate(symbol)
+            ticker = self.exchange.get_ticker(symbol)
             price = ticker["last"]
 
             # Store market data in state for dashboard
@@ -58,14 +59,20 @@ class Trader:
                              (pos.side == "short" and price <= pos.target_price)
 
                 if hit_stop or hit_target:
-                    exit_price = pos.stop_price if hit_stop else pos.target_price
                     reason = "STOP" if hit_stop else "TARGET"
+                    if ADVISOR_MODE:
+                        log.info(f"ADVISOR {reason} | {pos.side} | no automatic close")
+                        if self.state._broadcast_fn:
+                            await self.state._broadcast_fn(self.state.snapshot())
+                        return
+                    exit_price = pos.stop_price if hit_stop else pos.target_price
                     if not DEMO:
                         if not ALLOW_LIVE_TRADING:
                             log.warning("Live close blocked because ALLOW_LIVE_TRADING is false")
                             return
                         close_side = "sell" if pos.side == "long" else "buy"
-                        self.exchange.place_order(SYMBOL, close_side, pos.size)
+                        self.exchange.place_order(symbol, close_side, pos.size)
+                    from api.db import clear_position
                     trade = self.state.close_position(exit_price)
                     clear_position()
                     log.info(f"CLOSE {reason} | {trade.side} | pnl={trade.pnl:.2f}")
@@ -75,16 +82,22 @@ class Trader:
                 signal = self.strategy.compute(df, funding)
                 self.state.current_signal = signal.value.upper()
                 if signal in (Signal.BUY, Signal.SELL):
+                    side = "long" if signal == Signal.BUY else "short"
+                    size, stop, target = self.risk.size_position(self.state.capital, price, side)
+                    if ADVISOR_MODE:
+                        log.info(f"ADVISOR {side.upper()} | price={price} size={size} stop={stop} target={target}")
+                        if self.state._broadcast_fn:
+                            await self.state._broadcast_fn(self.state.snapshot())
+                        return
                     if not DEMO and not ALLOW_LIVE_TRADING:
                         log.warning("Live entry blocked because ALLOW_LIVE_TRADING is false")
                         return
-                    side = "long" if signal == Signal.BUY else "short"
-                    size, stop, target = self.risk.size_position(self.state.capital, price, side)
                     order_id = None
                     if not DEMO:
                         order_side = "buy" if side == "long" else "sell"
-                        resp = self.exchange.place_order(SYMBOL, order_side, size)
+                        resp = self.exchange.place_order(symbol, order_side, size)
                         order_id = resp.get("sendStatus", {}).get("order_id")
+                    from api.db import save_position
                     self.state.open_position(side, price, size, stop, target, order_id)
                     save_position(self.state.position)
                     log.info(f"OPEN {side.upper()} | price={price} size={size} stop={stop} target={target}")
@@ -100,7 +113,7 @@ class Trader:
         """Fast loop: update price every 10s for live dashboard sync."""
         while self._running:
             try:
-                ticker = self.exchange.get_ticker(SYMBOL)
+                ticker = self.exchange.get_ticker(self.state.active_symbol or SYMBOL)
                 price = ticker["last"]
                 if price and price != self.state.last_price:
                     self.state.last_price = price
@@ -113,7 +126,7 @@ class Trader:
 
     async def run(self):
         self._running = True
-        log.info(f"Trader started | symbol={SYMBOL} interval={INTERVAL}m demo={DEMO}")
+        log.info(f"Trader started | symbol={self.state.active_symbol or SYMBOL} interval={INTERVAL}m demo={DEMO} advisor={ADVISOR_MODE}")
         asyncio.create_task(self._price_loop())
         while self._running:
             start = time.monotonic()

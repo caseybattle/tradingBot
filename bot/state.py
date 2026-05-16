@@ -29,6 +29,7 @@ class BotState:
     def __init__(self, initial_capital: float = 10000.0):
         self.initial_capital = initial_capital
         self.capital = initial_capital
+        self.active_symbol: str = "PI_XBTUSD"
         self.position: Optional[Position] = None
         self.trades: list[Trade] = []
         self.equity_history: list[tuple[float, float]] = []
@@ -112,6 +113,7 @@ class BotState:
         total = self.wins + self.losses
         recent = self.trades[-20:]
         return {
+            "active_symbol": self.active_symbol,
             "capital": round(self.capital, 2),
             "pnl_total": round(self.capital - self.initial_capital, 2),
             "pnl_pct": round((self.capital / self.initial_capital - 1) * 100, 2),

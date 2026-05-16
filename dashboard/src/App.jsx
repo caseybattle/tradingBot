@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { PnLCounter } from "./components/PnLCounter";
 import { TradeLog } from "./components/TradeLog";
@@ -8,7 +7,11 @@ import { BacktestPanel } from "./components/BacktestPanel";
 import { TradeJournal } from "./components/TradeJournal";
 import { StrategyCard } from "./components/StrategyCard";
 import { ChatPanel } from "./components/ChatPanel";
-import { REST_BASE } from "./api";
+import { AdvisorPanel } from "./components/AdvisorPanel";
+import { ProofGatePanel } from "./components/ProofGatePanel";
+import { MarketSelector } from "./components/MarketSelector";
+import { AdvisorJournalPanel } from "./components/AdvisorJournalPanel";
+import { ValidationLeaderboardPanel } from "./components/ValidationLeaderboardPanel";
 
 const CARD = {
   background: "rgba(255,255,255,0.03)",
@@ -43,7 +46,7 @@ function RsiGauge({ rsi }) {
   );
 }
 
-function SignalBanner({ signal, position, lastPrice, onLong, onShort, onClose, loading }) {
+function SignalBanner({ signal, position, lastPrice }) {
   const hasSignal  = signal === "BUY" || signal === "SELL";
   const hasPos     = !!position;
   const unrealized = position?.unrealized_pnl ?? 0;
@@ -74,12 +77,12 @@ function SignalBanner({ signal, position, lastPrice, onLong, onShort, onClose, l
             {unrealized >= 0 ? "+" : ""}${unrealized.toFixed(2)}
           </div>
           <div style={{ fontSize: 10, color: "#555", marginBottom: 8 }}>UNREALIZED P&L</div>
-          <button onClick={onClose} disabled={loading} style={{
+          <button disabled style={{
             background: "rgba(255,68,85,0.15)", border: "1px solid rgba(255,68,85,0.4)",
             color: "#ff4455", fontSize: 12, fontWeight: 700, letterSpacing: 1,
-            padding: "6px 20px", borderRadius: 6, cursor: "pointer",
+            padding: "6px 20px", borderRadius: 6, cursor: "not-allowed", opacity: 0.6,
           }}>
-            {loading ? "CLOSING..." : "CLOSE POSITION"}
+            ADVISOR ONLY
           </button>
         </div>
       </div>
@@ -107,29 +110,13 @@ function SignalBanner({ signal, position, lastPrice, onLong, onShort, onClose, l
             SuperTrend flip confirmed · RSI filter passed · ${lastPrice?.toLocaleString()}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          {isBuy && (
-            <button onClick={onLong} disabled={loading} style={{
-              background: "rgba(0,255,136,0.15)", border: "2px solid #00ff88",
-              color: "#00ff88", fontSize: 14, fontWeight: 800, letterSpacing: 1,
-              padding: "10px 28px", borderRadius: 8, cursor: "pointer",
-            }}>
-              {loading ? "PLACING..." : "▲ GO LONG"}
-            </button>
-          )}
-          {!isBuy && (
-            <button onClick={onShort} disabled={loading} style={{
-              background: "rgba(255,68,85,0.15)", border: "2px solid #ff4455",
-              color: "#ff4455", fontSize: 14, fontWeight: 800, letterSpacing: 1,
-              padding: "10px 28px", borderRadius: 8, cursor: "pointer",
-            }}>
-              {loading ? "PLACING..." : "▼ GO SHORT"}
-            </button>
-          )}
-          <button onClick={() => {}} style={{
-            background: "transparent", border: "1px solid #333",
-            color: "#555", fontSize: 12, padding: "10px 16px", borderRadius: 8, cursor: "pointer",
-          }}>SKIP</button>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 12, color, fontWeight: 800, letterSpacing: 1 }}>
+            ADVISOR PLAN READY
+          </div>
+          <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>
+            No automatic orders
+          </div>
         </div>
       </div>
     );
@@ -140,24 +127,11 @@ function SignalBanner({ signal, position, lastPrice, onLong, onShort, onClose, l
     <div style={{ ...CARD, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <div>
         <div style={LBL}>SIGNAL STATUS</div>
-        <div style={{ fontSize: 16, color: "#444", fontWeight: 600 }}>SCANNING — No signal yet</div>
+        <div style={{ fontSize: 16, color: "#444", fontWeight: 600 }}>SCANNING - No signal yet</div>
         <div style={{ fontSize: 11, color: "#333", marginTop: 3 }}>Waiting for SuperTrend flip on 15m candle</div>
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={onLong} disabled={loading} style={{
-          background: "rgba(0,255,136,0.08)", border: "1px solid rgba(0,255,136,0.25)",
-          color: "#00ff88", fontSize: 12, fontWeight: 700,
-          padding: "8px 18px", borderRadius: 7, cursor: "pointer",
-        }}>
-          {loading ? "..." : "▲ LONG"}
-        </button>
-        <button onClick={onShort} disabled={loading} style={{
-          background: "rgba(255,68,85,0.08)", border: "1px solid rgba(255,68,85,0.25)",
-          color: "#ff4455", fontSize: 12, fontWeight: 700,
-          padding: "8px 18px", borderRadius: 7, cursor: "pointer",
-        }}>
-          {loading ? "..." : "▼ SHORT"}
-        </button>
+      <div style={{ textAlign: "right", fontSize: 11, color: "#555" }}>
+        Advisor mode scans live data only
       </div>
     </div>
   );
@@ -165,7 +139,6 @@ function SignalBanner({ signal, position, lastPrice, onLong, onShort, onClose, l
 
 export default function App() {
   const { data, connected } = useWebSocket();
-  const [tradeLoading, setTradeLoading] = useState(false);
 
   const pnl       = data?.pnl_total ?? 0;
   const pnlPct    = data?.pnl_pct ?? 0;
@@ -184,29 +157,10 @@ export default function App() {
   const worstTrade = data?.worst_trade ?? 0;
   const signal    = data?.current_signal ?? "HOLD";
   const totalTrades = wins + losses;
+  const activeSymbol = data?.active_symbol ?? "PI_XBTUSD";
 
   const stColor   = stDir === 1 ? "#00ff88" : stDir === -1 ? "#ff4455" : "#555";
   const fundingColor = funding > 0 ? "#ff4455" : funding < 0 ? "#00ff88" : "#888";
-
-  const placeOrder = async (side) => {
-    setTradeLoading(true);
-    try {
-      await fetch(`${REST_BASE}/order?side=${side}`, { method: "POST" });
-    } catch (e) {
-      console.warn("Order request failed", e);
-    }
-    setTradeLoading(false);
-  };
-
-  const closePosition = async () => {
-    setTradeLoading(true);
-    try {
-      await fetch(`${REST_BASE}/close`, { method: "POST" });
-    } catch (e) {
-      console.warn("Close request failed", e);
-    }
-    setTradeLoading(false);
-  };
 
   return (
     <div style={{
@@ -222,11 +176,11 @@ export default function App() {
           <div>
             <div style={{ fontSize: 11, color: "#333", letterSpacing: 3 }}>BATTLE LABS</div>
             <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: 1, marginTop: 2 }}>BTC TRADER</div>
-            <div style={{ fontSize: 11, color: "#444", marginTop: 2 }}>PI_XBTUSD · Kraken Futures · 15m · {connected ? "Paper" : "Offline"}</div>
+            <div style={{ fontSize: 11, color: "#444", marginTop: 2 }}>{activeSymbol} · Kraken Futures · 15m · {connected ? "Advisor" : "Offline"}</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 38, fontWeight: 800, fontFamily: "monospace", color: "#fff", letterSpacing: -1 }}>
-              {lastPrice > 0 ? `$${lastPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}
+              {lastPrice > 0 ? `$${lastPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "N/A"}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end", marginTop: 4 }}>
               <div style={{
@@ -241,13 +195,11 @@ export default function App() {
           </div>
         </div>
 
+        <MarketSelector />
+
         {/* SIGNAL BANNER - always first */}
         <SignalBanner
           signal={signal} position={position} lastPrice={lastPrice}
-          onLong={() => placeOrder("long")}
-          onShort={() => placeOrder("short")}
-          onClose={closePosition}
-          loading={tradeLoading}
         />
 
         <StrategyCard
@@ -257,6 +209,14 @@ export default function App() {
           funding={funding}
           position={position}
         />
+
+        <AdvisorPanel snapshot={data} />
+
+        <ProofGatePanel />
+
+        <AdvisorJournalPanel snapshot={data} />
+
+        <ValidationLeaderboardPanel />
 
         {/* ROW 1: Stats */}
         <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
@@ -276,14 +236,14 @@ export default function App() {
           <div style={{ ...CARD, textAlign: "center" }}>
             <div style={LBL}>WIN RATE</div>
             <div style={{ fontSize: 30, fontWeight: 800, color: totalTrades === 0 ? "#555" : winRate >= 50 ? "#00ff88" : "#ff4455" }}>
-              {totalTrades === 0 ? "—" : `${winRate.toFixed(1)}%`}
+              {totalTrades === 0 ? "N/A" : `${winRate.toFixed(1)}%`}
             </div>
             <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>{wins}W · {losses}L · {totalTrades} trades</div>
           </div>
           <div style={{ ...CARD, textAlign: "center" }}>
             <div style={LBL}>BEST / WORST</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#00ff88" }}>{bestTrade !== 0 ? `+$${bestTrade.toFixed(2)}` : "—"}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#ff4455", marginTop: 6 }}>{worstTrade !== 0 ? `$${worstTrade.toFixed(2)}` : "—"}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#00ff88" }}>{bestTrade !== 0 ? `+$${bestTrade.toFixed(2)}` : "N/A"}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#ff4455", marginTop: 6 }}>{worstTrade !== 0 ? `$${worstTrade.toFixed(2)}` : "N/A"}</div>
           </div>
         </div>
 
@@ -292,7 +252,7 @@ export default function App() {
           <div style={{ ...CARD, textAlign: "center" }}>
             <div style={LBL}>SUPERTREND (10, 3.0)</div>
             <div style={{ fontSize: 26, fontWeight: 800, color: stColor, marginBottom: 4 }}>
-              {stDir === 1 ? "▲ BULL" : stDir === -1 ? "▼ BEAR" : "— WAIT"}
+              {stDir === 1 ? "▲ BULL" : stDir === -1 ? "▼ BEAR" : "WAIT"}
             </div>
             <div style={{ fontSize: 11, color: "#444" }}>
               {stDir === 1 ? "Bullish trend active" : stDir === -1 ? "Bearish trend active" : "Awaiting flip signal"}

@@ -12,7 +12,7 @@ export function useWebSocket() {
   const poll      = useRef(null);
   const connectRef = useRef(null);
 
-  // REST poll — runs always so the dashboard isn't blank while WS reconnects
+  // REST poll runs always so the dashboard is not blank while WS reconnects.
   const startPoll = useCallback(() => {
     const tick = async () => {
       try {

@@ -9,6 +9,8 @@ const CARD = {
 };
 
 const COMMANDS = [
+  "show journal",
+  "show leaderboard",
   "run backtest",
   "explain signal",
   "show risk",
@@ -21,6 +23,15 @@ function summarizeData(data) {
   if (!data) return null;
   if (data.gate) {
     return `${data.gate} · ${data.total_return_pct?.toFixed?.(1)}% return · Sharpe ${data.sharpe_ratio?.toFixed?.(2)} · DD ${data.max_drawdown_pct?.toFixed?.(1)}%`;
+  }
+  if (Array.isArray(data.rows)) {
+    const leader = data.rows[0];
+    return leader
+      ? `${data.trusted_count} trusted · leader ${leader.strategy_name} on ${leader.symbol} · gate ${leader.gate}`
+      : "No leaderboard rows yet.";
+  }
+  if (Array.isArray(data.signals)) {
+    return `${data.summary?.actionable ?? 0} actionable signals · ${data.summary?.open_outcomes ?? 0} open outcomes`;
   }
   if (data.signal) {
     return data.summary;
@@ -43,7 +54,7 @@ export function ChatPanel() {
   const [history, setHistory] = useState([
     {
       role: "bot",
-      text: "Ask for an approved action: run backtest, explain signal, show risk, start paper bot, stop paper bot, or close paper position.",
+      text: "Ask for an approved action: show journal, show leaderboard, run backtest, explain signal, show risk, start paper bot, stop paper bot, or close paper position.",
     },
   ]);
 

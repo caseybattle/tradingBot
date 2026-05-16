@@ -36,9 +36,9 @@ def main():
     print()
 
     if result.passes_gate():
-        print("GO — strategy cleared. Safe to paper trade.")
+        print("GO - strategy cleared. Safe to paper trade.")
     else:
-        print("NO-GO — strategy failed gate. Do NOT trade live.")
+        print("NO-GO - strategy failed gate. Do NOT trade live.")
         print("  Adjust strategy params or gather more data.")
 
     return 0 if result.passes_gate() else 1

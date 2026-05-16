@@ -36,7 +36,7 @@ def compute_metrics(equity: pd.Series, trades: list) -> BacktestResult:
     """
     returns = equity.pct_change().dropna()
 
-    # Sharpe — annualized, 15-min candles = 96 candles/day * 252 trading days
+    # Sharpe - annualized, 15-min candles = 96 candles/day * 252 trading days
     periods_per_year = 96 * 252
     sharpe = (returns.mean() / returns.std() * np.sqrt(periods_per_year)) if returns.std() > 0 else 0.0
 

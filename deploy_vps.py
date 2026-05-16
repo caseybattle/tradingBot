@@ -11,7 +11,7 @@ FILES = [
     "bot/state.py", "bot/strategy.py", "bot/trader.py",
     "api/__init__.py", "api/main.py", "api/db.py",
     "backtest/__init__.py", "backtest/data.py", "backtest/engine.py",
-    "backtest/metrics.py",
+    "backtest/metrics.py", "backtest/validation.py", "backtest/leaderboard.py",
 ]
 
 def get_password():

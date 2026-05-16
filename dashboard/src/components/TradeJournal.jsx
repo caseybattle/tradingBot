@@ -71,14 +71,14 @@ export function TradeJournal() {
             display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12,
             background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: "14px 16px", marginBottom: 16,
           }}>
-            <StatBox label="WIN RATE" value={winRate ? `${winRate}%` : "—"}
+            <StatBox label="WIN RATE" value={winRate ? `${winRate}%` : "N/A"}
               color={winRate ? (parseFloat(winRate) >= 50 ? "#00ff88" : "#ffa500") : "#555"} />
-            <StatBox label="PROFIT FACTOR" value={pf ? pf.toFixed(2) : "—"}
+            <StatBox label="PROFIT FACTOR" value={pf ? pf.toFixed(2) : "N/A"}
               color={pf ? (pf >= 1.5 ? "#00ff88" : pf >= 1.0 ? "#ffa500" : "#ff4455") : "#555"} />
-            <StatBox label="EXPECTANCY" value={expectancy ? `$${expectancy}` : "—"}
+            <StatBox label="EXPECTANCY" value={expectancy ? `$${expectancy}` : "N/A"}
               color={expectancy ? (parseFloat(expectancy) > 0 ? "#00ff88" : "#ff4455") : "#555"} />
-            <StatBox label="AVG WIN" value={avgWin > 0 ? `+$${avgWin.toFixed(2)}` : "—"} color="#00ff88" />
-            <StatBox label="AVG LOSS" value={avgLoss > 0 ? `-$${avgLoss.toFixed(2)}` : "—"} color="#ff4455" />
+            <StatBox label="AVG WIN" value={avgWin > 0 ? `+$${avgWin.toFixed(2)}` : "N/A"} color="#00ff88" />
+            <StatBox label="AVG LOSS" value={avgLoss > 0 ? `-$${avgLoss.toFixed(2)}` : "N/A"} color="#ff4455" />
           </div>
 
           {/* Trade table */}

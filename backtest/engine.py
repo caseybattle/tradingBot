@@ -8,7 +8,7 @@ from backtest.metrics import compute_metrics, BacktestResult
 class BacktestEngine:
     """
     Vectorized backtest: pre-computes all indicators once, then walks candle-by-candle.
-    O(n) instead of O(n²) — runs 1 year of 15m data in seconds.
+    O(n) instead of O(n^2) - runs 1 year of 15m data in seconds.
     """
 
     def __init__(
@@ -20,6 +20,7 @@ class BacktestEngine:
         max_position_usd: float = 5000.0,
         funding_rate: float = 0.0001,
         commission_pct: float = 0.0005,
+        slippage_pct: float = 0.0002,
         adx_min: float = 25.0,
         use_session_filter: bool = True,
         use_confirmation: bool = True,
@@ -27,6 +28,7 @@ class BacktestEngine:
         self.initial_capital     = initial_capital
         self.funding_rate        = funding_rate
         self.commission_pct      = commission_pct
+        self.slippage_pct        = slippage_pct
         self.adx_min             = adx_min
         self.use_session_filter  = use_session_filter
         self.use_confirmation    = use_confirmation
@@ -100,17 +102,19 @@ class BacktestEngine:
 
                 if closed:
                     if position["side"] == "long":
-                        pnl = (exit_price - position["entry"]) * position["size"]
+                        fill_price = exit_price * (1 - self.slippage_pct)
+                        pnl = (fill_price - position["entry"]) * position["size"]
                     else:
-                        pnl = (position["entry"] - exit_price) * position["size"]
-                    pnl -= exit_price * position["size"] * self.commission_pct
+                        fill_price = exit_price * (1 + self.slippage_pct)
+                        pnl = (position["entry"] - fill_price) * position["size"]
+                    pnl -= fill_price * position["size"] * self.commission_pct
                     capital += pnl
                     trades.append({
                         "entry_time": position["entry_time"],
                         "exit_time":  ts,
                         "side":       position["side"],
                         "entry":      position["entry"],
-                        "exit":       exit_price,
+                        "exit":       fill_price,
                         "size":       position["size"],
                         "pnl":        pnl,
                     })
@@ -150,10 +154,11 @@ class BacktestEngine:
 
                 if side:
                     entry_price = current["open"]
-                    size, stop, target = self.risk_manager.size_position(capital, entry_price, side)
-                    capital -= entry_price * size * self.commission_pct
+                    fill_price = entry_price * (1 + self.slippage_pct) if side == "long" else entry_price * (1 - self.slippage_pct)
+                    size, stop, target = self.risk_manager.size_position(capital, fill_price, side)
+                    capital -= fill_price * size * self.commission_pct
                     position = {
-                        "side": side, "entry": entry_price, "size": size,
+                        "side": side, "entry": fill_price, "size": size,
                         "stop": stop, "target": target, "entry_time": ts,
                     }
 

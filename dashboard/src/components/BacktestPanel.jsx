@@ -19,7 +19,7 @@ function Metric({ label, value, target, higherBetter = true, fmt = (v) => v }) {
     <div style={{ textAlign: "center" }}>
       <div style={LBL}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color, fontFamily: "monospace" }}>
-        {Number.isFinite(value) ? fmt(value) : "—"}
+        {Number.isFinite(value) ? fmt(value) : "N/A"}
       </div>
       {target !== undefined && (
         <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>
