@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SNAPSHOT_URL, WS_URL } from "../api";
 
-const WS_URL   = import.meta.env.VITE_WS_URL   || "ws://localhost:8000/ws";
-const REST_URL = import.meta.env.VITE_REST_URL  || "http://localhost:8000/snapshot";
 const POLL_MS  = 5000;
 
 export function useWebSocket() {
@@ -16,7 +15,7 @@ export function useWebSocket() {
   const startPoll = useCallback(() => {
     const tick = async () => {
       try {
-        const res = await fetch(REST_URL);
+        const res = await fetch(SNAPSHOT_URL);
         if (res.ok) setData(await res.json());
       } catch (e) {
         console.warn("Snapshot poll failed", e);

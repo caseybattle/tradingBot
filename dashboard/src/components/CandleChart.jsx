@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createChart, ColorType, CandlestickSeries } from "lightweight-charts";
-
-const REST_URL = import.meta.env.VITE_REST_URL?.replace("/snapshot", "") || "http://localhost:8000";
+import { REST_BASE } from "../api";
 
 const TIMEFRAMES = [
   { label: "1m",  value: 1 },
@@ -75,7 +74,7 @@ export function CandleChart() {
     if (!seriesRef.current) return;
     setLoading(true);
     try {
-      const res = await fetch(`${REST_URL}/candles?count=150&interval=${interval}`);
+      const res = await fetch(`${REST_BASE}/candles?count=150&interval=${interval}`);
       if (!res.ok) return;
       const data = await res.json();
       if (data.length > 0) {

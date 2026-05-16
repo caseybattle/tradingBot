@@ -1,9 +1,19 @@
+const isBrowser = typeof window !== "undefined";
+const isLocalHost = isBrowser && ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const defaultBase = isBrowser && !isLocalHost ? "/api" : "http://localhost:8000";
+
 const rawBase =
   import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_REST_URL?.replace(/\/snapshot\/?$/, "") ||
-  "http://localhost:8000";
+  defaultBase;
 
 export const REST_BASE = rawBase.replace(/\/$/, "");
+export const SNAPSHOT_URL = import.meta.env.VITE_REST_URL || `${REST_BASE}/snapshot`;
+export const WS_URL = import.meta.env.VITE_WS_URL || (
+  isBrowser && !isLocalHost
+    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`
+    : "ws://localhost:8000/ws"
+);
 
 export async function getJson(path) {
   const res = await fetch(`${REST_BASE}${path}`);

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-
-const REST_URL = import.meta.env.VITE_REST_URL?.replace("/snapshot", "") || "http://localhost:8000";
+import { REST_BASE } from "../api";
 
 const CARD = {
   background: "rgba(255,255,255,0.03)",
@@ -26,7 +25,7 @@ export function TradeJournal() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    fetch(`${REST_URL}/trades?limit=200`)
+    fetch(`${REST_BASE}/trades?limit=200`)
       .then(r => r.json())
       .then(setTrades)
       .catch(() => {});
