@@ -12,12 +12,12 @@ class Signal(Enum):
 
 class Strategy:
     """
-    SuperTrend(10, 3.0) + RSI(14) filter + funding rate overlay.
+    SuperTrend(10, 3.0) + RSI(14) + ADX(14) + session filter + confirmation candle.
 
     Entry rules:
-    - BUY:  SuperTrend flips bullish AND RSI < rsi_upper AND funding_rate < threshold
-    - SELL: SuperTrend flips bearish AND RSI > rsi_lower AND funding_rate > -threshold
-    - HOLD: otherwise
+    - BUY:  SuperTrend flips bullish AND RSI < rsi_upper AND funding < threshold
+            AND ADX > adx_min (trending) AND not in dead session AND confirmation candle bullish
+    - SELL: inverse
     """
 
     MIN_CANDLES = 50
@@ -30,6 +30,9 @@ class Strategy:
         rsi_upper: float = 65.0,
         rsi_lower: float = 35.0,
         funding_rate_threshold: float = 0.0005,
+        adx_min: float = 25.0,           # 0 = disabled
+        use_session_filter: bool = True,  # avoid 0-4am ET
+        use_confirmation: bool = True,    # wait for candle after flip
     ):
         self.st_period = supertrend_period
         self.st_mult = supertrend_mult
@@ -37,9 +40,33 @@ class Strategy:
         self.rsi_upper = rsi_upper
         self.rsi_lower = rsi_lower
         self.funding_threshold = funding_rate_threshold
+        self.adx_min = adx_min
+        self.use_session_filter = use_session_filter
+        self.use_confirmation = use_confirmation
+
+    def _adx_ok(self, df: pd.DataFrame) -> bool:
+        if self.adx_min <= 0:
+            return True
+        adx = ta.adx(df["high"], df["low"], df["close"], length=14)
+        if adx is None or adx.empty:
+            return True
+        col = [c for c in adx.columns if c.startswith("ADX_")]
+        if not col:
+            return True
+        val = float(adx[col[0]].iloc[-1])
+        return not np.isnan(val) and val >= self.adx_min
+
+    def _session_ok(self, df: pd.DataFrame) -> bool:
+        if not self.use_session_filter:
+            return True
+        ts = df.index[-1]
+        if hasattr(ts, "hour"):
+            # Dead zone: 0-4am ET = 4-9 UTC (approx, EDT)
+            utc_hour = ts.hour
+            return not (4 <= utc_hour < 9)
+        return True
 
     def get_indicators(self, df: pd.DataFrame) -> tuple[float, int]:
-        """Returns (rsi, supertrend_direction) for latest candle."""
         st = ta.supertrend(df["high"], df["low"], df["close"],
                            length=self.st_period, multiplier=self.st_mult)
         dir_cols = [c for c in st.columns if "SUPERTd" in c]
@@ -52,33 +79,41 @@ class Strategy:
         if len(df) < self.MIN_CANDLES:
             raise ValueError(f"Not enough candles: need {self.MIN_CANDLES}, got {len(df)}")
 
-        # SuperTrend
-        st = ta.supertrend(
-            df["high"], df["low"], df["close"],
-            length=self.st_period, multiplier=self.st_mult
-        )
-
-        # Find direction column (SUPERTd_10_3.0)
+        st = ta.supertrend(df["high"], df["low"], df["close"],
+                           length=self.st_period, multiplier=self.st_mult)
         dir_cols = [c for c in st.columns if "SUPERTd" in c]
         if not dir_cols:
             return Signal.HOLD
         direction_col = dir_cols[0]
 
         current_dir = int(st[direction_col].iloc[-1])
-        prev_dir = int(st[direction_col].iloc[-2])
+        prev_dir    = int(st[direction_col].iloc[-2])
 
-        # RSI
         rsi_series = ta.rsi(df["close"], length=self.rsi_period)
         current_rsi = float(rsi_series.iloc[-1])
         if np.isnan(current_rsi):
             return Signal.HOLD
 
-        # Flip detection
-        bullish_flip = current_dir == 1 and prev_dir == -1
-        bearish_flip = current_dir == -1 and prev_dir == 1
+        # With confirmation candle: flip must have happened on prev candle, current closes in trend
+        if self.use_confirmation:
+            prev_prev_dir = int(st[direction_col].iloc[-3]) if len(df) >= 3 else prev_dir
+            bullish_flip = prev_dir == 1 and prev_prev_dir == -1
+            bearish_flip = prev_dir == -1 and prev_prev_dir == 1
+            # Confirmation: current candle closes in trend direction
+            conf_bull = df["close"].iloc[-1] > df["open"].iloc[-1]
+            conf_bear = df["close"].iloc[-1] < df["open"].iloc[-1]
+        else:
+            bullish_flip = current_dir == 1 and prev_dir == -1
+            bearish_flip = current_dir == -1 and prev_dir == 1
+            conf_bull = conf_bear = True
 
-        if bullish_flip and current_rsi < self.rsi_upper and funding_rate < self.funding_threshold:
+        if not self._session_ok(df):
+            return Signal.HOLD
+        if not self._adx_ok(df):
+            return Signal.HOLD
+
+        if bullish_flip and conf_bull and current_rsi < self.rsi_upper and funding_rate < self.funding_threshold:
             return Signal.BUY
-        if bearish_flip and current_rsi > self.rsi_lower and funding_rate > -self.funding_threshold:
+        if bearish_flip and conf_bear and current_rsi > self.rsi_lower and funding_rate > -self.funding_threshold:
             return Signal.SELL
         return Signal.HOLD

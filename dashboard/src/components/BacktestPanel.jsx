@@ -30,18 +30,34 @@ function Metric({ label, value, target, higherBetter = true, fmt = (v) => v }) {
   );
 }
 
+const TOGGLE_BTN = (active) => ({
+  background: active ? "rgba(0,255,136,0.12)" : "rgba(255,255,255,0.03)",
+  border: `1px solid ${active ? "rgba(0,255,136,0.3)" : "rgba(255,255,255,0.08)"}`,
+  color: active ? "#00ff88" : "#555",
+  fontSize: 10, padding: "2px 8px", borderRadius: 4, cursor: "pointer", letterSpacing: 1,
+});
+
 export function BacktestPanel() {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen]       = useState(false);
   const [years, setYears]     = useState(1);
+  const [adx, setAdx]         = useState(true);
+  const [session, setSession] = useState(true);
+  const [confirm, setConfirm] = useState(true);
 
-  const run = async (y = years) => {
+  const run = async (y = years, a = adx, s = session, c = confirm) => {
     setLoading(true);
     setOpen(true);
     try {
       await fetch(`${REST_BASE}/backtest/reset`, { method: "POST" });
-      const res = await fetch(`${REST_BASE}/backtest?years=${y}`);
+      const params = new URLSearchParams({
+        years: y,
+        adx_min: a ? 25 : 0,
+        session_filter: s,
+        confirmation: c,
+      });
+      const res = await fetch(`${REST_BASE}/backtest?${params}`);
       setData(await res.json());
     } catch (e) {
       setData({ status: "error", detail: String(e) });
@@ -54,10 +70,18 @@ export function BacktestPanel() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: open && data ? 16 : 0 }}>
         <div>
           <div style={{ fontSize: 11, color: "#555", letterSpacing: 2 }}>BACKTEST RESULTS</div>
+          {data?.filters && <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>filters: {data.filters}</div>}
           {data?.note && <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>{data.note}</div>}
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {[1, 2, 3].map(y => (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {/* filter toggles */}
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <button onClick={() => setAdx(v => !v)} style={TOGGLE_BTN(adx)}>ADX</button>
+            <button onClick={() => setSession(v => !v)} style={TOGGLE_BTN(session)}>SESSION</button>
+            <button onClick={() => setConfirm(v => !v)} style={TOGGLE_BTN(confirm)}>CONFIRM</button>
+          </div>
+          <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.08)" }} />
+          {[1, 2, 3, 5].map(y => (
             <button key={y} onClick={() => { setYears(y); if (data) run(y); }} style={{
               background: years === y ? "rgba(0,255,136,0.12)" : "rgba(255,255,255,0.03)",
               border: `1px solid ${years === y ? "rgba(0,255,136,0.3)" : "rgba(255,255,255,0.08)"}`,

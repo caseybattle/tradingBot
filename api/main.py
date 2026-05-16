@@ -135,9 +135,15 @@ _backtest_cache: dict | None = None
 
 
 @app.get("/backtest")
-def backtest_endpoint(years: int = 1):
+def backtest_endpoint(
+    years: int = 1,
+    adx_min: float = 25.0,
+    session_filter: bool = True,
+    confirmation: bool = True,
+):
     global _backtest_cache
-    cache_key = f"y{years}"
+    years = min(years, 5)  # Binance.us 15m data starts Sep 2019
+    cache_key = f"y{years}_adx{adx_min}_s{int(session_filter)}_c{int(confirmation)}"
     if _backtest_cache and _backtest_cache.get("_key") == cache_key:
         return _backtest_cache
     try:
@@ -151,8 +157,16 @@ def backtest_endpoint(years: int = 1):
             risk_pct=0.02, stop_pct=0.015,
             target_mult=2.0, max_position_usd=5_000.0,
             commission_pct=0.0005,
+            adx_min=adx_min,
+            use_session_filter=session_filter,
+            use_confirmation=confirmation,
         )
         result = engine.run(df)
+        filters_desc = []
+        if adx_min > 0: filters_desc.append(f"ADX>{adx_min:.0f}")
+        if session_filter: filters_desc.append("session")
+        if confirmation: filters_desc.append("confirm")
+        filters_label = "+".join(filters_desc) if filters_desc else "baseline"
         _backtest_cache = {
             "_key": cache_key,
             "status": "ok",
@@ -164,7 +178,8 @@ def backtest_endpoint(years: int = 1):
             "total_trades": result.total_trades,
             "profit_factor": result.profit_factor,
             "years": years,
-            "note": f"{len(df):,} candles · {df.index[0].date()} → {df.index[-1].date()} · Binance BTCUSDT 15m",
+            "filters": filters_label,
+            "note": f"{len(df):,} candles · {df.index[0].date()} → {df.index[-1].date()} · Binance BTCUSDT 15m · {filters_label}",
         }
     except Exception as e:
         _backtest_cache = {"_key": cache_key, "status": "error", "detail": str(e)}
