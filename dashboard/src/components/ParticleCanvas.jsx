@@ -3,6 +3,11 @@ import * as THREE from "three";
 
 export function ParticleCanvas({ pnl = 0 }) {
   const mountRef = useRef(null);
+  const pnlRef = useRef(pnl);
+
+  useEffect(() => {
+    pnlRef.current = pnl;
+  }, [pnl]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -38,7 +43,7 @@ export function ParticleCanvas({ pnl = 0 }) {
 
     const mat = new THREE.PointsMaterial({
       size: 0.6,
-      color: pnl >= 0 ? 0x00ff88 : 0xff4455,
+      color: pnlRef.current >= 0 ? 0x00ff88 : 0xff4455,
       transparent: true,
       opacity: 0.6,
     });
@@ -70,10 +75,6 @@ export function ParticleCanvas({ pnl = 0 }) {
       mount.removeChild(renderer.domElement);
     };
   }, []);
-
-  useEffect(() => {
-    // handled by re-render color changes via CSS overlay; Three.js mat color update not needed per tick
-  }, [pnl]);
 
   return (
     <div

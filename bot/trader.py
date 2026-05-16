@@ -19,6 +19,7 @@ SYMBOL = os.getenv("SYMBOL", "PI_XBTUSD")
 INTERVAL = int(os.getenv("CANDLE_INTERVAL", "15"))
 LOOP_SECONDS = INTERVAL * 60
 DEMO = os.getenv("KRAKEN_DEMO", "true").lower() == "true"
+ALLOW_LIVE_TRADING = os.getenv("ALLOW_LIVE_TRADING", "false").lower() == "true"
 
 
 class Trader:
@@ -60,6 +61,9 @@ class Trader:
                     exit_price = pos.stop_price if hit_stop else pos.target_price
                     reason = "STOP" if hit_stop else "TARGET"
                     if not DEMO:
+                        if not ALLOW_LIVE_TRADING:
+                            log.warning("Live close blocked because ALLOW_LIVE_TRADING is false")
+                            return
                         close_side = "sell" if pos.side == "long" else "buy"
                         self.exchange.place_order(SYMBOL, close_side, pos.size)
                     trade = self.state.close_position(exit_price)
@@ -71,6 +75,9 @@ class Trader:
                 signal = self.strategy.compute(df, funding)
                 self.state.current_signal = signal.value.upper()
                 if signal in (Signal.BUY, Signal.SELL):
+                    if not DEMO and not ALLOW_LIVE_TRADING:
+                        log.warning("Live entry blocked because ALLOW_LIVE_TRADING is false")
+                        return
                     side = "long" if signal == Signal.BUY else "short"
                     size, stop, target = self.risk.size_position(self.state.capital, price, side)
                     order_id = None

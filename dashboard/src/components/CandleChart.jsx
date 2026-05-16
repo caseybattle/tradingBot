@@ -17,7 +17,7 @@ const BTN = (active) => ({
   fontSize: 11, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
 });
 
-export function CandleChart({ position }) {
+export function CandleChart() {
   const containerRef = useRef(null);
   const chartRef     = useRef(null);
   const seriesRef    = useRef(null);
@@ -84,23 +84,28 @@ export function CandleChart({ position }) {
         chartRef.current?.timeScale().fitContent();
         setLastUpdate(new Date().toLocaleTimeString());
       }
-    } catch {}
+    } catch (e) {
+      console.warn("Candle load failed", e);
+    }
     setLoading(false);
   }, []);
 
   // Reload when timeframe changes
   useEffect(() => {
-    loadCandles(tf);
+    const firstLoad = setTimeout(() => loadCandles(tf), 0);
     const refreshMs = tf <= 5 ? 15000 : tf === 15 ? 30000 : 60000;
     const id = setInterval(() => loadCandles(tf), refreshMs);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(firstLoad);
+      clearInterval(id);
+    };
   }, [tf, loadCandles]);
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <div style={{ fontSize: 11, color: "#555", letterSpacing: 2 }}>
-          PI_XBTUSD — {TIMEFRAMES.find(t => t.value === tf)?.label} CANDLES
+          PI_XBTUSD - {TIMEFRAMES.find(t => t.value === tf)?.label} CANDLES
           {loading && <span style={{ marginLeft: 8, color: "#333" }}>...</span>}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>

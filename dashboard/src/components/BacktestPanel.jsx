@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-
-const REST_BASE = import.meta.env.VITE_REST_URL?.replace("/snapshot", "") || "http://localhost:8000";
+import { useState } from "react";
+import { REST_BASE } from "../api";
 
 const CARD = {
   background: "rgba(255,255,255,0.03)",
@@ -11,15 +10,16 @@ const CARD = {
 const LBL = { fontSize: 11, color: "#555", letterSpacing: 2, marginBottom: 4 };
 
 function Metric({ label, value, target, higherBetter = true, fmt = (v) => v }) {
+  const safeValue = Number.isFinite(value) ? value : 0;
   const passes = target !== undefined
-    ? (higherBetter ? value >= target : value <= target)
+    ? (higherBetter ? safeValue >= target : safeValue <= target)
     : null;
   const color = passes === null ? "#aaa" : passes ? "#00ff88" : "#ff4455";
   return (
     <div style={{ textAlign: "center" }}>
       <div style={LBL}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color, fontFamily: "monospace" }}>
-        {fmt(value)}
+        {Number.isFinite(value) ? fmt(value) : "—"}
       </div>
       {target !== undefined && (
         <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>
@@ -103,7 +103,7 @@ export function BacktestPanel() {
 
       {open && loading && (
         <div style={{ textAlign: "center", color: "#555", fontSize: 13, padding: "24px 0" }}>
-          Fetching 8 days of 15m candles + running strategy...
+          Fetching {years} year{years === 1 ? "" : "s"} of 15m candles and running strategy...
         </div>
       )}
 
@@ -132,7 +132,7 @@ export function BacktestPanel() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 16 }}>
             <Metric label="TOTAL RETURN" value={data.total_return_pct}
               fmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`} />
             <Metric label="SHARPE RATIO" value={data.sharpe_ratio} target={0.8}
@@ -147,7 +147,7 @@ export function BacktestPanel() {
               higherBetter={true} fmt={(v) => v === Infinity ? "∞" : v.toFixed(2)} />
           </div>
           <div style={{ fontSize: 10, color: "#2a2a2a", marginTop: 12, textAlign: "center" }}>
-            Source: Binance.us BTCUSD 15m · Paper trading is primary live validation.
+            Source: {data.data_source} · Fees: {data.fees} · Slippage: {data.slippage} · Gate: {data.gate_rules}
           </div>
         </>
       )}

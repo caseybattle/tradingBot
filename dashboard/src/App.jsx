@@ -6,8 +6,9 @@ import { PnLChart } from "./components/PnLChart";
 import { CandleChart } from "./components/CandleChart";
 import { BacktestPanel } from "./components/BacktestPanel";
 import { TradeJournal } from "./components/TradeJournal";
-
-const REST_BASE = "http://localhost:8000";
+import { StrategyCard } from "./components/StrategyCard";
+import { ChatPanel } from "./components/ChatPanel";
+import { REST_BASE } from "./api";
 
 const CARD = {
   background: "rgba(255,255,255,0.03)",
@@ -191,7 +192,9 @@ export default function App() {
     setTradeLoading(true);
     try {
       await fetch(`${REST_BASE}/order?side=${side}`, { method: "POST" });
-    } catch {}
+    } catch (e) {
+      console.warn("Order request failed", e);
+    }
     setTradeLoading(false);
   };
 
@@ -199,7 +202,9 @@ export default function App() {
     setTradeLoading(true);
     try {
       await fetch(`${REST_BASE}/close`, { method: "POST" });
-    } catch {}
+    } catch (e) {
+      console.warn("Close request failed", e);
+    }
     setTradeLoading(false);
   };
 
@@ -236,13 +241,21 @@ export default function App() {
           </div>
         </div>
 
-        {/* SIGNAL BANNER — always first */}
+        {/* SIGNAL BANNER - always first */}
         <SignalBanner
           signal={signal} position={position} lastPrice={lastPrice}
           onLong={() => placeOrder("long")}
           onShort={() => placeOrder("short")}
           onClose={closePosition}
           loading={tradeLoading}
+        />
+
+        <StrategyCard
+          signal={signal}
+          rsi={rsi}
+          supertrendDir={stDir}
+          funding={funding}
+          position={position}
         />
 
         {/* ROW 1: Stats */}
@@ -300,7 +313,7 @@ export default function App() {
 
         {/* ROW 3: Candle chart */}
         <div style={{ ...CARD, marginBottom: 12, padding: "16px 20px 8px" }}>
-          <CandleChart position={position} />
+          <CandleChart />
         </div>
 
         {/* ROW 4: Equity curve (only when trades exist) */}
@@ -313,10 +326,13 @@ export default function App() {
         {/* ROW 5: Backtest */}
         <BacktestPanel />
 
-        {/* ROW 6: Trade Journal */}
+        {/* ROW 6: Chat control */}
+        <ChatPanel />
+
+        {/* ROW 7: Trade Journal */}
         <TradeJournal />
 
-        {/* ROW 7: Trade log */}
+        {/* ROW 8: Trade log */}
         <TradeLog trades={trades} />
       </div>
     </div>
