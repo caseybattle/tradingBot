@@ -8,6 +8,7 @@ from bot.exchange import KrakenFutures
 from bot.strategy import Strategy, Signal
 from bot.risk import RiskManager
 from bot.state import BotState
+from api.db import save_position, clear_position
 
 load_dotenv()
 
@@ -38,6 +39,8 @@ class Trader:
             # Store market data in state for dashboard
             self.state.last_price = price
             self.state.funding_rate = funding
+            self.state.last_tick_at = time.time()
+            self.state.next_tick_at = time.time() + LOOP_SECONDS
             try:
                 rsi, st_dir = self.strategy.get_indicators(df)
                 self.state.rsi = rsi
@@ -60,11 +63,13 @@ class Trader:
                         close_side = "sell" if pos.side == "long" else "buy"
                         self.exchange.place_order(SYMBOL, close_side, pos.size)
                     trade = self.state.close_position(exit_price)
+                    clear_position()
                     log.info(f"CLOSE {reason} | {trade.side} | pnl={trade.pnl:.2f}")
 
             # look for new signal only when flat
             if not self.state.position:
                 signal = self.strategy.compute(df, funding)
+                self.state.current_signal = signal.value.upper()
                 if signal in (Signal.BUY, Signal.SELL):
                     side = "long" if signal == Signal.BUY else "short"
                     size, stop, target = self.risk.size_position(self.state.capital, price, side)
@@ -74,6 +79,7 @@ class Trader:
                         resp = self.exchange.place_order(SYMBOL, order_side, size)
                         order_id = resp.get("sendStatus", {}).get("order_id")
                     self.state.open_position(side, price, size, stop, target, order_id)
+                    save_position(self.state.position)
                     log.info(f"OPEN {side.upper()} | price={price} size={size} stop={stop} target={target}")
 
             # push snapshot to WebSocket subscribers
@@ -83,9 +89,25 @@ class Trader:
         except Exception as e:
             log.error(f"Tick error: {e}")
 
+    async def _price_loop(self):
+        """Fast loop: update price every 10s for live dashboard sync."""
+        while self._running:
+            try:
+                ticker = self.exchange.get_ticker(SYMBOL)
+                price = ticker["last"]
+                if price and price != self.state.last_price:
+                    self.state.last_price = price
+                    # update unrealized pnl in state via broadcast
+                    if self.state._broadcast_fn:
+                        await self.state._broadcast_fn(self.state.snapshot())
+            except Exception:
+                pass
+            await asyncio.sleep(10)
+
     async def run(self):
         self._running = True
         log.info(f"Trader started | symbol={SYMBOL} interval={INTERVAL}m demo={DEMO}")
+        asyncio.create_task(self._price_loop())
         while self._running:
             start = time.monotonic()
             await self._tick()

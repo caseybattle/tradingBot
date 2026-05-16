@@ -8,3 +8,6 @@ dashboard/dist/
 *.egg-info/
 .venv/
 venv/
+api.log
+api_err.log
+docs/

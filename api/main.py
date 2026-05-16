@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from bot.state import BotState
 from bot.trader import Trader
-from api.db import save_trade, load_trades
+from api.db import save_trade, load_trades, save_position, load_position, clear_position
 
 log = logging.getLogger("api")
 state = BotState(initial_capital=float(os.getenv("INITIAL_CAPITAL", "10000")))
@@ -34,6 +34,15 @@ def _on_trade_closed(trade):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     state.register_broadcast(broadcast)
+    # Restore open position from DB across restarts
+    saved_pos = load_position()
+    if saved_pos:
+        state.open_position(
+            saved_pos["side"], saved_pos["entry_price"], saved_pos["size"],
+            saved_pos["stop_price"], saved_pos["target_price"], saved_pos["order_id"],
+        )
+        state.position.opened_at = saved_pos["opened_at"]
+        log.info(f"Restored position from DB: {saved_pos['side']} @ {saved_pos['entry_price']}")
     trader = Trader(state)
     task = asyncio.create_task(trader.run())
     yield
@@ -57,6 +66,64 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/order")
+async def place_manual_order(side: str, size: float = None):
+    """Manual trade: side=long|short. Uses risk manager if size omitted."""
+    import os
+    from bot.risk import RiskManager
+    from bot.exchange import KrakenFutures
+    DEMO = os.getenv("KRAKEN_DEMO", "true").lower() == "true"
+    SYMBOL = os.getenv("SYMBOL", "PI_XBTUSD")
+
+    if state.position:
+        return {"error": "position already open"}
+    if state.last_price == 0:
+        return {"error": "no price data yet"}
+    if side not in ("long", "short"):
+        return {"error": "side must be long or short"}
+
+    rm = RiskManager(account_balance=state.capital)
+    calc_size, stop, target = rm.size_position(state.capital, state.last_price, side)
+    trade_size = size or calc_size
+
+    order_id = None
+    if not DEMO:
+        ex = KrakenFutures(demo=False)
+        order_side = "buy" if side == "long" else "sell"
+        resp = ex.place_order(SYMBOL, order_side, trade_size)
+        order_id = resp.get("sendStatus", {}).get("order_id")
+
+    state.open_position(side, state.last_price, trade_size, stop, target, order_id)
+    save_position(state.position)
+    state.current_signal = "HOLD"
+    if state._broadcast_fn:
+        await state._broadcast_fn(state.snapshot())
+    return {"status": "ok", "side": side, "entry": state.last_price, "size": trade_size, "stop": stop, "target": target, "demo": DEMO}
+
+
+@app.post("/close")
+async def close_position_endpoint():
+    """Close the current open position."""
+    import os
+    from bot.exchange import KrakenFutures
+    DEMO = os.getenv("KRAKEN_DEMO", "true").lower() == "true"
+    SYMBOL = os.getenv("SYMBOL", "PI_XBTUSD")
+
+    if not state.position:
+        return {"error": "no open position"}
+    price = state.last_price
+    if not DEMO:
+        ex = KrakenFutures(demo=False)
+        close_side = "sell" if state.position.side == "long" else "buy"
+        ex.place_order(SYMBOL, close_side, state.position.size)
+
+    trade = state.close_position(price)
+    clear_position()
+    if state._broadcast_fn:
+        await state._broadcast_fn(state.snapshot())
+    return {"status": "ok", "pnl": trade.pnl}
 
 
 @app.get("/snapshot")
@@ -112,12 +179,12 @@ def backtest_reset():
 
 
 @app.get("/candles")
-def candles_endpoint(count: int = 100):
+def candles_endpoint(count: int = 100, interval: int = None):
     import os
     from bot.exchange import KrakenFutures
     demo = os.getenv("KRAKEN_DEMO", "true").lower() == "true"
     symbol = os.getenv("SYMBOL", "PI_XBTUSD")
-    interval = int(os.getenv("CANDLE_INTERVAL", "15"))
+    interval = interval or int(os.getenv("CANDLE_INTERVAL", "15"))
     ex = KrakenFutures(demo=demo)
     df = ex.get_candles(symbol, resolution=interval, count=count)
     df = df.reset_index()

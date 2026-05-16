@@ -38,6 +38,9 @@ class BotState:
         self.rsi: float = 0.0
         self.supertrend_dir: int = 0   # 1=bull, -1=bear, 0=unknown
         self.funding_rate: float = 0.0
+        self.current_signal: str = "HOLD"   # HOLD | BUY | SELL
+        self.last_tick_at: float = 0.0
+        self.next_tick_at: float = 0.0
 
         # Performance tracking
         self.wins: int = 0
@@ -116,6 +119,9 @@ class BotState:
             "rsi": round(self.rsi, 1),
             "supertrend_dir": self.supertrend_dir,
             "funding_rate": self.funding_rate,
+            "current_signal": self.current_signal,
+            "last_tick_at": self.last_tick_at,
+            "next_tick_at": self.next_tick_at,
             "wins": self.wins,
             "losses": self.losses,
             "win_rate": round(self.wins / total * 100, 1) if total > 0 else 0.0,

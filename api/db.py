@@ -23,6 +23,18 @@ class TradeRecord(Base):
     closed_at = Column(Float)
 
 
+class OpenPosition(Base):
+    __tablename__ = "open_position"
+    id = Column(Integer, primary_key=True, default=1)
+    side = Column(String)
+    entry_price = Column(Float)
+    size = Column(Float)
+    stop_price = Column(Float)
+    target_price = Column(Float)
+    opened_at = Column(Float)
+    order_id = Column(String, nullable=True)
+
+
 Base.metadata.create_all(engine)
 
 
@@ -37,6 +49,35 @@ def save_trade(trade) -> None:
             opened_at=trade.opened_at,
             closed_at=trade.closed_at,
         ))
+        session.commit()
+
+
+def save_position(pos) -> None:
+    with Session(engine) as session:
+        session.query(OpenPosition).delete()
+        session.add(OpenPosition(
+            id=1, side=pos.side, entry_price=pos.entry_price, size=pos.size,
+            stop_price=pos.stop_price, target_price=pos.target_price,
+            opened_at=pos.opened_at, order_id=pos.order_id,
+        ))
+        session.commit()
+
+
+def load_position() -> dict | None:
+    with Session(engine) as session:
+        row = session.query(OpenPosition).first()
+        if not row:
+            return None
+        return {
+            "side": row.side, "entry_price": row.entry_price, "size": row.size,
+            "stop_price": row.stop_price, "target_price": row.target_price,
+            "opened_at": row.opened_at, "order_id": row.order_id,
+        }
+
+
+def clear_position() -> None:
+    with Session(engine) as session:
+        session.query(OpenPosition).delete()
         session.commit()
 
 
