@@ -10,11 +10,10 @@ const rawBase =
 
 export const REST_BASE = rawBase.replace(/\/$/, "");
 export const SNAPSHOT_URL = import.meta.env.VITE_REST_URL || `${REST_BASE}/snapshot`;
-export const WS_URL = import.meta.env.VITE_WS_URL || (
-  isBrowser && !isLocalHost
-    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`
-    : `ws://${localApiHost}:8000/ws`
-);
+const envWsUrl = import.meta.env.DEV ? import.meta.env.VITE_WS_URL : undefined;
+export const WS_URL = isBrowser && !isLocalHost
+  ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`
+  : envWsUrl || `ws://${localApiHost}:8000/ws`;
 
 export async function getJson(path) {
   const res = await fetch(`${REST_BASE}${path}`);
