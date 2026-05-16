@@ -5,6 +5,7 @@ import { TradeLog } from "./components/TradeLog";
 import { PnLChart } from "./components/PnLChart";
 import { CandleChart } from "./components/CandleChart";
 import { BacktestPanel } from "./components/BacktestPanel";
+import { TradeJournal } from "./components/TradeJournal";
 
 const REST_BASE = "http://localhost:8000";
 
@@ -312,7 +313,10 @@ export default function App() {
         {/* ROW 5: Backtest */}
         <BacktestPanel />
 
-        {/* ROW 6: Trade log */}
+        {/* ROW 6: Trade Journal */}
+        <TradeJournal />
+
+        {/* ROW 7: Trade log */}
         <TradeLog trades={trades} />
       </div>
     </div>

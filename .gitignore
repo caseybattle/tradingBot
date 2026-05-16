@@ -11,3 +11,5 @@ venv/
 api.log
 api_err.log
 docs/
+
+.vercel
