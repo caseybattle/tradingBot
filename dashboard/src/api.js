@@ -1,19 +1,19 @@
 const isBrowser = typeof window !== "undefined";
 const isLocalHost = isBrowser && ["localhost", "127.0.0.1"].includes(window.location.hostname);
 const localApiHost = isBrowser ? window.location.hostname : "localhost";
-const defaultBase = isBrowser && !isLocalHost ? "/api" : `http://${localApiHost}:8000`;
-
-const rawBase =
+const isProductionHost = isBrowser && !isLocalHost;
+const localBase =
   import.meta.env.VITE_API_BASE ||
   import.meta.env.VITE_REST_URL?.replace(/\/snapshot\/?$/, "") ||
-  defaultBase;
+  `http://${localApiHost}:8000`;
+
+const rawBase = isProductionHost ? "/api" : localBase;
 
 export const REST_BASE = rawBase.replace(/\/$/, "");
-export const SNAPSHOT_URL = import.meta.env.VITE_REST_URL || `${REST_BASE}/snapshot`;
+export const SNAPSHOT_URL =
+  isProductionHost ? `${REST_BASE}/snapshot` : import.meta.env.VITE_REST_URL || `${REST_BASE}/snapshot`;
 const envWsUrl = import.meta.env.DEV ? import.meta.env.VITE_WS_URL : undefined;
-export const WS_URL = isBrowser && !isLocalHost
-  ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`
-  : envWsUrl || `ws://${localApiHost}:8000/ws`;
+export const WS_URL = isProductionHost ? "" : envWsUrl || `ws://${localApiHost}:8000/ws`;
 
 export async function getJson(path) {
   const res = await fetch(`${REST_BASE}${path}`);
