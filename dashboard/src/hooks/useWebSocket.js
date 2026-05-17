@@ -16,8 +16,14 @@ export function useWebSocket() {
     const tick = async () => {
       try {
         const res = await fetch(SNAPSHOT_URL);
-        if (res.ok) setData(await res.json());
+        if (res.ok) {
+          setData(await res.json());
+          setConnected(true);
+        } else {
+          setConnected(false);
+        }
       } catch (e) {
+        setConnected(false);
         console.warn("Snapshot poll failed", e);
       }
       poll.current = setTimeout(tick, POLL_MS);
